@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; color: #1a1a1a; }
+  h2.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  .app { max-width: 900px; margin: 0 auto; padding: 16px; }
+  .title { font-size: 20px; font-weight: 700; margin-bottom: 4px; color: #1a1a1a; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 16px; }
+
+  /* Tab nav */
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab { padding: 8px 14px; border-radius: 8px; border: 1.5px solid #ddd; background: #fff; cursor: pointer; font-size: 13px; font-weight: 500; color: #555; transition: all 0.15s; }
+  .tab:hover { border-color: #6c63ff; color: #6c63ff; }
+  .tab.active { background: #6c63ff; border-color: #6c63ff; color: #fff; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Card */
+  .card { background: #fff; border-radius: 12px; border: 1px solid #e8e8e8; padding: 16px; margin-bottom: 12px; }
+  .card-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: #222; }
+
+  /* Term grid */
+  .term-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .term-item { background: #f4f3ff; border-radius: 8px; padding: 10px 12px; border-left: 3px solid #6c63ff; }
+  .term-name { font-weight: 600; font-size: 13px; color: #6c63ff; margin-bottom: 3px; }
+  .term-def { font-size: 12px; color: #444; line-height: 1.5; }
+
+  /* SVG trees */
+  .tree-canvas { width: 100%; }
+  svg text { user-select: none; }
+  .node-circle { cursor: pointer; transition: all 0.2s; }
+  .node-circle:hover { filter: brightness(0.9); }
+  .highlighted { fill: #ffd166 !important; }
+  .visited { fill: #06d6a0 !important; }
+  .current { fill: #ef476f !important; }
+
+  /* Traversal panel */
+  .traversal-controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .btn { padding: 7px 14px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+  .btn-primary { background: #6c63ff; color: #fff; }
+  .btn-primary:hover { background: #5a52e0; }
+  .btn-secondary { background: #f0f0f0; color: #333; }
+  .btn-secondary:hover { background: #e0e0e0; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .traversal-select { padding: 7px 10px; border-radius: 7px; border: 1.5px solid #ddd; font-size: 13px; color: #333; background: #fff; cursor: pointer; }
+
+  .result-box { background: #f8f7ff; border: 1.5px solid #c5c0ff; border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-top: 10px; min-height: 36px; }
+  .result-label { font-size: 11px; color: #888; margin-bottom: 4px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+  .result-nodes { display: flex; gap: 6px; flex-wrap: wrap; }
+  .result-node { background: #6c63ff; color: #fff; border-radius: 5px; padding: 3px 8px; font-size: 13px; font-weight: 600; }
+  .result-node.done { background: #06d6a0; }
+
+  /* Traversal explanation */
+  .explanation { font-size: 12px; color: #555; background: #fafafa; border-radius: 8px; padding: 10px 12px; line-height: 1.6; margin-top: 10px; border: 1px solid #eee; }
+
+  /* Tree types grid */
+  .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .type-card { background: #fafafa; border-radius: 10px; padding: 12px; border: 1.5px solid #eee; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .type-card:hover, .type-card.selected { border-color: #6c63ff; background: #f4f3ff; }
+  .type-name { font-weight: 600; font-size: 13px; color: #333; margin-bottom: 4px; }
+  .type-desc { font-size: 11px; color: #777; line-height: 1.4; }
+
+  /* Heap */
+  .heap-controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .heap-input { padding: 7px 10px; border-radius: 7px; border: 1.5px solid #ddd; font-size: 13px; width: 70px; }
+  .heap-toggle { display: flex; border: 1.5px solid #ddd; border-radius: 8px; overflow: hidden; }
+  .heap-toggle-btn { padding: 7px 14px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; background: #fff; color: #555; transition: all 0.15s; }
+  .heap-toggle-btn.active { background: #6c63ff; color: #fff; }
+
+  .heap-log { background: #f8f7ff; border: 1.5px solid #c5c0ff; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #555; min-height: 40px; margin-top: 10px; line-height: 1.6; }
+  .log-step { color: #6c63ff; font-weight: 500; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .type-grid { grid-template-columns: 1fr 1fr; }
+    .term-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<h2 class="sr-only">자료구조 트리(Tree) 인터랙티브 학습 자료 - 용어, 트리 종류, 순회, 히프를 탭별로 탐색</h2>
+<div class="app">
+  <div class="title">🌳 트리(Tree) 자료구조</div>
+  <div class="subtitle">자료구조 07장 — 탭을 눌러 각 개념을 탐색하세요</div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('terms')">📖 트리 용어</button>
+    <button class="tab" onclick="showTab('types')">🌲 트리 종류</button>
+    <button class="tab" onclick="showTab('traversal')">🔄 순회 (Traversal)</button>
+    <button class="tab" onclick="showTab('heap')">⛰️ 히프 (Heap)</button>
+  </div>
+
+  <!-- TERMS PANEL -->
+  <div id="panel-terms" class="panel active">
+    <div class="card">
+      <div class="card-title">트리 자료구조 주요 용어</div>
+      <svg id="term-tree" viewBox="0 0 560 280" class="tree-canvas" style="margin-bottom:14px;"></svg>
+      <div class="term-grid" id="term-grid"></div>
+    </div>
+  </div>
+
+  <!-- TYPES PANEL -->
+  <div id="panel-types" class="panel">
+    <div class="card">
+      <div class="card-title">이진 트리의 종류</div>
+      <div class="type-grid">
+        <div class="type-card selected" onclick="showTreeType('full')" id="type-full">
+          <div class="type-name">포화 이진 트리</div>
+          <div class="type-desc">모든 레벨에 노드가 가득 찬 트리<br>높이 h → 노드 수 = 2^(h+1)−1</div>
+        </div>
+        <div class="type-card" onclick="showTreeType('complete')" id="type-complete">
+          <div class="type-name">완전 이진 트리</div>
+          <div class="type-desc">왼쪽부터 빈 자리 없이 채워진 트리<br>(h+1 ≤ n < 2^(h+1)−1)</div>
+        </div>
+        <div class="type-card" onclick="showTreeType('skewed')" id="type-skewed">
+          <div class="type-name">편향 이진 트리</div>
+          <div class="type-desc">한쪽 방향으로만 자식이 있는 트리<br>메모리 낭비 발생 (단점)</div>
+        </div>
+      </div>
+      <svg id="type-tree" viewBox="0 0 560 260" class="tree-canvas" style="margin-top:14px;"></svg>
+      <div id="type-desc-box" class="explanation" style="margin-top:8px;"></div>
+    </div>
+  </div>
+
+  <!-- TRAVERSAL PANEL -->
+  <div id="panel-traversal" class="panel">
+    <div class="card">
+      <div class="card-title">이진 트리 순회 (Traversal)</div>
+      <div class="traversal-controls">
+        <select class="traversal-select" id="trav-select" onchange="resetTraversal()">
+          <option value="pre">전위 순회 (Pre-order) D→L→R</option>
+          <option value="in">중위 순회 (In-order) L→D→R</option>
+          <option value="post">후위 순회 (Post-order) L→R→D</option>
+        </select>
+        <button class="btn btn-primary" id="btn-next" onclick="stepTraversal()">▶ 다음 노드</button>
+        <button class="btn btn-secondary" onclick="resetTraversal()">↺ 초기화</button>
+        <button class="btn btn-secondary" onclick="autoTraversal()" id="btn-auto">⚡ 자동 실행</button>
+      </div>
+      <svg id="trav-tree" viewBox="0 0 560 280" class="tree-canvas"></svg>
+      <div class="result-box">
+        <div class="result-label">방문 순서</div>
+        <div class="result-nodes" id="result-nodes"></div>
+      </div>
+      <div class="explanation" id="trav-explanation"></div>
+    </div>
+  </div>
+
+  <!-- HEAP PANEL -->
+  <div id="panel-heap" class="panel">
+    <div class="card">
+      <div class="card-title">히프 (Heap)</div>
+      <div style="font-size:12px;color:#555;margin-bottom:10px;line-height:1.6;">
+        완전 이진 트리에서 <b>최대/최솟값을 빠르게 찾기</b> 위한 자료구조.<br>
+        최대 히프: 부모 ≥ 자식 &nbsp;|&nbsp; 최소 히프: 부모 ≤ 자식
+      </div>
+      <div class="heap-controls">
+        <div class="heap-toggle">
+          <button class="heap-toggle-btn active" id="heap-max-btn" onclick="setHeapType('max')">최대 히프</button>
+          <button class="heap-toggle-btn" id="heap-min-btn" onclick="setHeapType('min')">최소 히프</button>
+        </div>
+        <input class="heap-input" type="number" id="heap-input" placeholder="숫자" min="1" max="99" onkeydown="if(event.key==='Enter')heapInsert()">
+        <button class="btn btn-primary" onclick="heapInsert()">+ 삽입</button>
+        <button class="btn btn-secondary" onclick="heapDelete()">루트 삭제</button>
+        <button class="btn btn-secondary" onclick="heapReset()">↺ 초기화</button>
+      </div>
+      <svg id="heap-tree" viewBox="0 0 560 280" class="tree-canvas"></svg>
+      <div class="heap-log" id="heap-log">히프에 숫자를 삽입하거나 삭제해보세요.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== UTILITY ====================
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs={}, text='') {
+  const e = document.createElementNS(NS, tag);
+  Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k,v));
+  if (text) e.textContent = text;
+  return e;
+}
+function drawEdge(svg, x1,y1,x2,y2) {
+  svg.appendChild(el('line', {x1,y1,x2,y2, stroke:'#ccc', 'stroke-width':'2'}));
+}
+function drawNode(svg, x, y, label, fill='#fff', r=20, textFill='#333', id='') {
+  const g = el('g');
+  const c = el('circle', {cx:x, cy:y, r, fill, stroke:'#6c63ff', 'stroke-width':'2', class:'node-circle', id: id||''});
+  const t = el('text', {x, y:''+( +y+5), 'text-anchor':'middle', 'font-size':'13', fill:textFill, 'font-weight':'600'}, label);
+  g.appendChild(c);
+  g.appendChild(t);
+  svg.appendChild(g);
+  return c;
+}
+
+// ==================== TABS ====================
+function showTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  event.target.classList.add('active');
+  if (name==='terms') drawTermTree();
+  if (name==='types') { showTreeType('full'); }
+  if (name==='traversal') { drawTraversalTree(); resetTraversal(); }
+  if (name==='heap') drawHeapTree();
+}
+
+// ==================== TERMS ====================
+const TERMS = [
+  {name:'노드 (Node)', def:'트리의 원소. 데이터를 저장하는 기본 단위'},
+  {name:'루트 (Root)', def:'트리의 시작 노드. 부모가 없는 최상위 노드'},
+  {name:'간선 (Edge)', def:'노드를 연결하는 선. 부모-자식 관계를 나타냄'},
+  {name:'리프 노드 (Leaf)', def:'자식이 없는 단말 노드 (차수 = 0)'},
+  {name:'부모 노드', def:'자식을 가진 상위 노드'},
+  {name:'자식 노드', def:'부모 아래에 있는 하위 노드'},
+  {name:'형제 노드', def:'같은 부모를 가진 노드들 (B,C,D)'},
+  {name:'조상 노드', def:'루트까지 경로 위의 모든 노드 (엄마~증조할머니)'},
+  {name:'서브 트리', def:'특정 노드를 루트로 하는 하위 트리'},
+  {name:'차수 (Degree)', def:'노드의 자식 수. 이진 트리는 차수 ≤ 2'},
+  {name:'레벨 (Level)', def:'루트=레벨0, 아래로 내려갈수록 +1'},
+  {name:'높이 (Height)', def:'트리의 최대 레벨 (Depth와 같은 값)'},
+];
+
+function drawTermTree() {
+  const svg = document.getElementById('term-tree');
+  svg.innerHTML = '';
+  const nodes = [
+    {id:'A', x:280, y:35, label:'A\n루트'},
+    {id:'B', x:160, y:100, label:'B'},
+    {id:'C', x:280, y:100, label:'C'},
+    {id:'D', x:400, y:100, label:'D'},
+    {id:'E', x:100, y:170, label:'E'},
+    {id:'F', x:200, y:170, label:'F'},
+    {id:'G', x:280, y:170, label:'G'},
+    {id:'H', x:350, y:170, label:'H'},
+    {id:'I', x:430, y:170, label:'I'},
+    {id:'J', x:470, y:170, label:'J'},
+    {id:'K', x:170, y:240, label:'K'},
+    {id:'L', x:230, y:240, label:'L'},
+  ];
+  const edges = [['A','B'],['A','C'],['A','D'],['B','E'],['B','F'],['C','G'],['D','H'],['D','I'],['D','J'],['F','K'],['F','L']];
+  const pos = {};
+  nodes.forEach(n => pos[n.id] = {x:n.x, y:n.y});
+  edges.forEach(([a,b]) => drawEdge(svg, pos[a].x, pos[a].y, pos[b].x, pos[b].y));
+  nodes.forEach(n => {
+    const fills = {A:'#ede9fe', K:'#d1fae5', L:'#d1fae5', E:'#d1fae5', G:'#d1fae5', H:'#d1fae5', I:'#d1fae5', J:'#d1fae5'};
+    drawNode(svg, n.x, n.y, n.id, fills[n.id]||'#fff');
+  });
+  // Labels
+  const labels = [{x:295,y:28,t:'레벨 0'},{x:465,y:100,t:'레벨 1'},{x:500,y:170,t:'레벨 2'},{x:505,y:240,t:'레벨 3'}];
+  labels.forEach(l => {
+    const t = el('text', {x:l.x, y:l.y, 'font-size':'11', fill:'#aaa'}, l.t);
+    svg.appendChild(t);
+  });
+  // Leaf note
+  const lt = el('text', {x:10, y:248, 'font-size':'10', fill:'#06d6a0'}, '● 단말(리프) 노드');
+  svg.appendChild(lt);
+  // Draw term grid
+  const grid = document.getElementById('term-grid');
+  grid.innerHTML = '';
+  TERMS.forEach(t => {
+    grid.innerHTML += `<div class="term-item"><div class="term-name">${t.name}</div><div class="term-def">${t.def}</div></div>`;
+  });
+}
+
+// ==================== TREE TYPES ====================
+function showTreeType(type) {
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('type-'+type).classList.add('selected');
+  const svg = document.getElementById('type-tree');
+  svg.innerHTML = '';
+  const desc = document.getElementById('type-desc-box');
+
+  if (type === 'full') {
+    // Perfect binary tree h=3, 15 nodes — show h=2 (7 nodes)
+    const positions = [
+      null,
+      {x:280,y:30},{x:175,y:90},{x:385,y:90},
+      {x:120,y:155},{x:230,y:155},{x:330,y:155},{x:440,y:155},
+      {x:90,y:225},{x:150,y:225},{x:200,y:225},{x:260,y:225},
+      {x:300,y:225},{x:360,y:225},{x:410,y:225},{x:470,y:225}
+    ];
+    const n = 15;
+    for (let i=1; i<=n; i++) {
+      const li = Math.floor(i/2);
+      if (li >= 1) drawEdge(svg, positions[li].x, positions[li].y, positions[i].x, positions[i].y);
+    }
+    for (let i=1; i<=n; i++) {
+      drawNode(svg, positions[i].x, positions[i].y, ''+i, '#ede9fe', 18);
+    }
+    desc.innerHTML = `<b>포화 이진 트리 (Full/Perfect Binary Tree)</b><br>• 모든 레벨이 꽉 찬 이진 트리<br>• 높이 h=3 → 노드 수 = 2⁴−1 = <b>15개</b><br>• 루트를 1번으로 번호 부여 → 부모 찾기: i/2, 왼쪽 자식: 2i, 오른쪽 자식: 2i+1`;
+  } else if (type === 'complete') {
+    const positions = [
+      null,
+      {x:280,y:30},{x:175,y:95},{x:385,y:95},
+      {x:115,y:165},{x:235,y:165},{x:325,y:165},{x:445,y:165},
+      {x:85,y:235},{x:145,y:235},{x:205,y:235},{x:265,y:235},{x:305,y:235}
+    ];
+    const n = 12;
+    const empty = [13,14,15];
+    for (let i=1; i<=n; i++) {
+      const li = Math.floor(i/2);
+      if (li >= 1) drawEdge(svg, positions[li].x, positions[li].y, positions[i].x, positions[i].y);
+    }
+    // show empty spots 13,14,15
+    const empPos = [{x:365,y:235},{x:425,y:235},{x:485,y:235}];
+    empPos.forEach((p,idx) => {
+      svg.appendChild(el('circle', {cx:p.x, cy:p.y, r:18, fill:'none', stroke:'#ddd', 'stroke-width':'2', 'stroke-dasharray':'5,3'}));
+      svg.appendChild(el('text', {x:p.x, y:p.y+5, 'text-anchor':'middle', 'font-size':'11', fill:'#ccc'}, (13+idx)+''));
+    });
+    for (let i=1; i<=n; i++) {
+      drawNode(svg, positions[i].x, positions[i].y, ''+i, i>7?'#d1fae5':'#ede9fe', 18);
+    }
+    desc.innerHTML = `<b>완전 이진 트리 (Complete Binary Tree)</b><br>• 포화 이진 트리의 1번~n번까지 빈 자리 없이 채운 트리<br>• h+1 ≤ n < 2^(h+1)−1 조건 만족<br>• 회색 점선: 포화 이진 트리에서 비어있는 자리 (13~15번)`;
+  } else {
+    // Skewed - left and right side by side
+    const leftNodes = [{x:195,y:30},{x:155,y:100},{x:115,y:170},{x:75,y:240}];
+    const rightNodes = [{x:380,y:30},{x:420,y:100},{x:460,y:170},{x:500,y:240}];
+    const labels = ['A','B','C','D'];
+    for (let i=0;i<3;i++) {
+      drawEdge(svg, leftNodes[i].x, leftNodes[i].y, leftNodes[i+1].x, leftNodes[i+1].y);
+      drawEdge(svg, rightNodes[i].x, rightNodes[i].y, rightNodes[i+1].x, rightNodes[i+1].y);
+    }
+    leftNodes.forEach((p,i) => drawNode(svg, p.x, p.y, labels[i], '#fff0f3', 20));
+    rightNodes.forEach((p,i) => drawNode(svg, p.x, p.y, labels[i], '#fff0f3', 20));
+    svg.appendChild(el('text', {x:150, y:270, 'text-anchor':'middle', 'font-size':'12', fill:'#888'}, '왼쪽 편향'));
+    svg.appendChild(el('text', {x:420, y:270, 'text-anchor':'middle', 'font-size':'12', fill:'#888'}, '오른쪽 편향'));
+    svg.appendChild(el('line', {x1:280, y1:10, x2:280, y2:255, stroke:'#eee', 'stroke-width':'1', 'stroke-dasharray':'6,3'}));
+    desc.innerHTML = `<b>편향 이진 트리 (Skewed Binary Tree)</b><br>• 모든 노드가 한쪽 방향 자식만 가짐<br>• 높이 h일 때 노드 수 = h+1 (최소)<br>• ⚠️ 단점: 배열로 구현 시 메모리 낭비 (중간에 빈 칸 대량 발생)`;
+  }
+}
+
+// ==================== TRAVERSAL ====================
+// Tree: A(root), B(left), C(right), D(B.left), E(B.right), F(C.left), G(C.right), H(D.left), I(E.left), J(E.right), K(G.right)
+const TRAV_NODES = {
+  A:{x:280,y:35}, B:{x:160,y:110}, C:{x:400,y:110},
+  D:{x:95,y:185}, E:{x:225,y:185}, F:{x:340,y:185}, G:{x:460,y:185},
+  H:{x:65,y:255}, I:{x:185,y:255}, J:{x:265,y:255}, K:{x:490,y:255}
+};
+const TRAV_EDGES = [['A','B'],['A','C'],['B','D'],['B','E'],['C','F'],['C','G'],['D','H'],['E','I'],['E','J'],['G','K']];
+const TREE_STRUCT = {
+  A:{left:'B',right:'C'}, B:{left:'D',right:'E'}, C:{left:'F',right:'G'},
+  D:{left:'H',right:null}, E:{left:'I',right:'J'}, F:{left:null,right:null},
+  G:{left:null,right:'K'}, H:{left:null,right:null}, I:{left:null,right:null},
+  J:{left:null,right:null}, K:{left:null,right:null}
+};
+
+let travOrder = [];
+let travStep = 0;
+let travTimer = null;
+const TRAV_EXPS = {
+  pre: 'D → L → R (루트 먼저 방문)\n전위 순회: 루트를 방문한 뒤, 왼쪽→오른쪽 서브트리 순서로 이동합니다.\n결과: A-B-D-H-E-I-J-C-F-G-K',
+  in:  'L → D → R (루트 중간 방문)\n중위 순회: 왼쪽 서브트리를 모두 방문한 뒤 루트, 그리고 오른쪽 서브트리를 방문합니다.\n결과: H-D-B-I-E-J-A-F-C-G-K',
+  post:'L → R → D (루트 마지막 방문)\n후위 순회: 왼쪽→오른쪽 서브트리를 모두 방문한 뒤 루트를 방문합니다.\n결과: H-D-I-J-E-B-F-K-G-C-A'
+};
+
+function getTraversalOrder(node, type, result=[]) {
+  if (!node) return;
+  const n = TREE_STRUCT[node];
+  if (type === 'pre') {
+    result.push(node);
+    getTraversalOrder(n.left, type, result);
+    getTraversalOrder(n.right, type, result);
+  } else if (type === 'in') {
+    getTraversalOrder(n.left, type, result);
+    result.push(node);
+    getTraversalOrder(n.right, type, result);
+  } else {
+    getTraversalOrder(n.left, type, result);
+    getTraversalOrder(n.right, type, result);
+    result.push(node);
+  }
+  return result;
+}
+
+function drawTraversalTree(highlightIdx=-1, visitedUpTo=-1) {
+  const svg = document.getElementById('trav-tree');
+  svg.innerHTML = '';
+  TRAV_EDGES.forEach(([a,b]) => drawEdge(svg, TRAV_NODES[a].x, TRAV_NODES[a].y, TRAV_NODES[b].x, TRAV_NODES[b].y));
+  Object.entries(TRAV_NODES).forEach(([id, {x,y}]) => {
+    let fill = '#fff';
+    const idx = travOrder.indexOf(id);
+    if (idx !== -1 && idx < visitedUpTo) fill = '#06d6a0';
+    if (idx !== -1 && idx === visitedUpTo) fill = '#ef476f';
+    drawNode(svg, x, y, id, fill, 20);
+  });
+}
+
+function resetTraversal() {
+  clearInterval(travTimer);
+  travTimer = null;
+  document.getElementById('btn-auto').textContent = '⚡ 자동 실행';
+  const type = document.getElementById('trav-select').value;
+  travOrder = getTraversalOrder('A', type);
+  travStep = 0;
+  drawTraversalTree(-1, -1);
+  document.getElementById('result-nodes').innerHTML = '';
+  document.getElementById('trav-explanation').innerText = TRAV_EXPS[type];
+  document.getElementById('btn-next').disabled = false;
+}
+
+function stepTraversal() {
+  if (travStep >= travOrder.length) { travStep = 0; return; }
+  drawTraversalTree(travStep, travStep);
+  const rn = document.getElementById('result-nodes');
+  const span = document.createElement('span');
+  span.className = 'result-node';
+  span.textContent = travOrder[travStep];
+  rn.appendChild(span);
+  travStep++;
+  if (travStep >= travOrder.length) {
+    document.getElementById('btn-next').disabled = true;
+    rn.querySelectorAll('.result-node').forEach(s => s.classList.add('done'));
+  }
+}
+
+function autoTraversal() {
+  if (travTimer) {
+    clearInterval(travTimer);
+    travTimer = null;
+    document.getElementById('btn-auto').textContent = '⚡ 자동 실행';
+    return;
+  }
+  resetTraversal();
+  document.getElementById('btn-auto').textContent = '⏸ 정지';
+  travTimer = setInterval(() => {
+    if (travStep >= travOrder.length) {
+      clearInterval(travTimer);
+      travTimer = null;
+      document.getElementById('btn-auto').textContent = '⚡ 자동 실행';
+      return;
+    }
+    stepTraversal();
+  }, 700);
+}
+
+// ==================== HEAP ====================
+let heapArr = [];
+let heapType = 'max';
+
+function setHeapType(type) {
+  heapType = type;
+  document.getElementById('heap-max-btn').classList.toggle('active', type==='max');
+  document.getElementById('heap-min-btn').classList.toggle('active', type==='min');
+  heapReset();
+}
+
+function heapCompare(a, b) {
+  return heapType === 'max' ? a > b : a < b;
+}
+
+function heapInsert() {
+  const val = parseInt(document.getElementById('heap-input').value);
+  if (isNaN(val) || val < 1 || val > 999) { heapLog('유효한 숫자(1~999)를 입력하세요.'); return; }
+  document.getElementById('heap-input').value = '';
+  heapArr.push(val);
+  let i = heapArr.length - 1;
+  const steps = [`<span class="log-step">[삽입]</span> ${val}을 인덱스 ${i}에 임시 저장`];
+  while (i > 0) {
+    const parent = Math.floor((i-1)/2);
+    if (heapCompare(heapArr[i], heapArr[parent])) {
+      steps.push(`부모 ${heapArr[parent]} ${heapType==='max'?'<':'>'} ${heapArr[i]} → 자리 교환`);
+      [heapArr[i], heapArr[parent]] = [heapArr[parent], heapArr[i]];
+      i = parent;
+    } else break;
+  }
+  steps.push(`✅ 인덱스 ${i}에 ${val} 확정`);
+  heapLog(steps.join('<br>'));
+  drawHeapTree(i);
+}
+
+function heapDelete() {
+  if (heapArr.length === 0) { heapLog('히프가 비어있습니다.'); return; }
+  const root = heapArr[0];
+  const last = heapArr.pop();
+  const steps = [`<span class="log-step">[삭제]</span> 루트 ${root} 반환`];
+  if (heapArr.length === 0) { heapLog(steps.join('<br>')); drawHeapTree(); return; }
+  heapArr[0] = last;
+  steps.push(`마지막 노드 ${last}를 루트로 이동`);
+  let i = 0;
+  while (true) {
+    const l = 2*i+1, r = 2*i+2;
+    let target = i;
+    if (l < heapArr.length && heapCompare(heapArr[l], heapArr[target])) target = l;
+    if (r < heapArr.length && heapCompare(heapArr[r], heapArr[target])) target = r;
+    if (target === i) break;
+    steps.push(`자식 ${heapArr[target]} ${heapType==='max'?'>':'<'} ${heapArr[i]} → 자리 교환`);
+    [heapArr[i], heapArr[target]] = [heapArr[target], heapArr[i]];
+    i = target;
+  }
+  steps.push(`✅ ${last} → 인덱스 ${i}에 확정`);
+  heapLog(steps.join('<br>'));
+  drawHeapTree(0);
+}
+
+function heapReset() {
+  heapArr = heapType === 'max' ? [32,30,25,21,29,17,23,14,19] : [14,17,19,25,29,21,23,32,30];
+  heapLog(`${heapType==='max'?'최대':'최소'} 히프 초기화 완료. 루트: ${heapArr[0]}`);
+  drawHeapTree();
+}
+
+function heapLog(msg) {
+  document.getElementById('heap-log').innerHTML = msg;
+}
+
+function drawHeapTree(highlightIdx=-1) {
+  const svg = document.getElementById('heap-tree');
+  svg.innerHTML = '';
+  const n = heapArr.length;
+  if (n === 0) {
+    svg.appendChild(el('text', {x:280, y:140, 'text-anchor':'middle', 'font-size':'14', fill:'#aaa'}, '히프가 비어있습니다'));
+    return;
+  }
+  // Calculate positions
+  const maxDepth = Math.floor(Math.log2(n));
+  const baseY = 35;
+  const levelH = 68;
+  const getPos = (i) => {
+    const depth = Math.floor(Math.log2(i+1));
+    const posInLevel = i - (Math.pow(2,depth)-1);
+    const nodesInLevel = Math.pow(2,depth);
+    const x = 560 / (nodesInLevel+1) * (posInLevel+1);
+    const y = baseY + depth * levelH;
+    return {x, y};
+  };
+  // Edges
+  for (let i=0; i<n; i++) {
+    const l = 2*i+1, r = 2*i+2;
+    const p = getPos(i);
+    if (l < n) { const lp = getPos(l); drawEdge(svg, p.x, p.y, lp.x, lp.y); }
+    if (r < n) { const rp = getPos(r); drawEdge(svg, p.x, p.y, rp.x, rp.y); }
+  }
+  // Nodes
+  for (let i=0; i<n; i++) {
+    const {x,y} = getPos(i);
+    let fill = '#ede9fe';
+    if (i === 0) fill = '#ffd166';
+    if (i === highlightIdx) fill = '#ef476f';
+    drawNode(svg, x, y, ''+heapArr[i], fill, 20, i===highlightIdx?'#fff':'#333');
+  }
+  // Legend
+  const lg = el('text', {x:10, y:275, 'font-size':'11', fill:'#f59e0b'}, '● 루트(최값)');
+  svg.appendChild(lg);
+}
+
+// ==================== INIT ====================
+drawTermTree();
+showTreeType('full');
+</script>
+</body>
+</html>
